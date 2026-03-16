@@ -1,0 +1,38 @@
+---
+- name: Create OpenShift project
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+
+    project_name: "{{ ocp_project_name }}"
+    project_description: "{{ ocp_project_description | default('Project created via Ansible') }}"
+
+  tasks:
+
+    - name: Create namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ project_name }}"
+            labels:
+              managed-by: ansible
+    
+    - name: Ensure Apache service is running and enabled
+      ansible.builtin.service:
+        name: httpd
+        state: started
+        enabled: true
+
+    - name: Open HTTP (80) and HTTPS (443) ports in firewall
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop:
+        - http
+        - https
