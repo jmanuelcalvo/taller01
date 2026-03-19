@@ -1,6 +1,6 @@
 ---
 - name: "Linux: Health Check & Provisioning"
-  hosts: linux_servers
+  hosts: os_linux
   become: yes
   
   vars:
