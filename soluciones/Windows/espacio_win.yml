@@ -1,0 +1,38 @@
+---
+- name: "Windows: Storage Health Check"
+  hosts: os_windows
+  gather_facts: no
+  
+  vars:
+    target_drive: "C:"             # Letra de la unidad a verificar
+    min_disk_gb: 10                # Umbral mínimo de seguridad en GB
+
+  tasks:
+    - name: "Consultar espacio en disco (Silencioso)"
+      ansible.windows.win_powershell:
+        script: |
+          $drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='{{ target_drive }}'"
+          $freeGB = [math]::Round($drive.FreeSpace / 1GB, 2)
+          return $freeGB
+      register: disk_info
+      no_log: true
+
+    - name: "Validar límite de disco"
+      ansible.builtin.assert:
+        that: 
+          - disk_info.output[0] > (min_disk_gb | float)
+        fail_msg: "ERROR: El disco {{ target_drive }} solo tiene {{ disk_info.output[0] }}GB (Mínimo: {{ min_disk_gb }}GB)."
+      no_log: true
+
+    - name: "📊 REPORTE DE ALMACENAMIENTO WINDOWS"
+      ansible.builtin.debug:
+        msg: 
+          - "==========================================="
+          - "🖥️ SERVIDOR: {{ inventory_hostname | upper }}"
+          - "-------------------------------------------"
+          - "📌 UNIDAD: {{ target_drive }}"
+          - "💾 DISPONIBLE: {{ disk_info.output[0] }} GB"
+          - "📉 MÍNIMO REQUERIDO: {{ min_disk_gb }} GB"
+          - "✅ ESTADO: ESPACIO SUFICIENTE"
+          - "==========================================="
+      when: disk_info.output[0] > (min_disk_gb | float)
