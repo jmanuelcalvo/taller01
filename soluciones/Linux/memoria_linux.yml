@@ -1,47 +1,64 @@
 ---
-- name: "Consumo de Memoria Offline en RHEL"
-  hosts: all
+- name: "Consumo de Memoria Offline en RHEL - Reporte Limpio"
+  hosts: os_linux
   become: yes
   vars:
-    # Configura aquí cuánta RAM quieres consumir (en Megabytes)
-    # Ejemplo: 1024 = 1GB
-    mem_to_consume_mb: 512
-    # Cuánto tiempo quieres que se mantenga ocupada (en segundos)
-    duration_seconds: 60
+    # Configuración de la prueba
+    mem_a_consumir_mb: 1024
+    duracion_segundos: 60
 
   tasks:
-    - name: "1. Estado de memoria ANTES"
-      ansible.builtin.command: free -m
-      register: pre_mem
-    
-    - name: "Mostrar memoria inicial"
+    - name: "1. Obtener y mostrar estado INICIAL"
       ansible.builtin.debug:
-        msg: "{{ pre_mem.stdout_lines }}"
+        msg:
+          - "-------------------------------------------"
+          - "ESTADO DE MEMORIA: INICIAL"
+          - "-------------------------------------------"
+          - "Total RAM:      {{ ansible_memtotal_mb }} MB"
+          - "RAM Libre:      {{ ansible_memfree_mb }} MB"
+          - "RAM Disponible: {{ ansible_memavailable_mb }} MB"
+          - "-------------------------------------------"
 
-    - name: "2. Ejecutar consumo de memoria (Python)"
-      # Creamos un bytearray gigante en RAM. 
-      # 1024 * 1024 * MB = Bytes exactos.
+    - name: "2. Validar si hay suficiente RAM disponible"
+      ansible.builtin.assert:
+        that:
+          - ansible_memavailable_mb > mem_a_consumir_mb
+        fail_msg: "¡Error! Intentas consumir {{ mem_a_consumir_mb }}MB pero solo tienes {{ ansible_memavailable_mb }}MB libres."
+        success_msg: "Validación exitosa. Iniciando proceso..."
+
+    - name: "3. Ejecutar consumo de memoria (Proceso Python)"
+      # Este comando reserva la RAM exacta y se queda esperando
       ansible.builtin.shell: >
         python3 -c "import time; 
-        a = bytearray(1024 * 1024 * {{ mem_to_consume_mb }}); 
-        print('Consumiendo...'); 
-        time.sleep({{ duration_seconds }})"
-      async: "{{ duration_seconds + 10 }}" # Un poco más que el sleep para evitar timeouts
-      poll: 0 # No esperar a que termine para pasar a la siguiente tarea
+        print('Iniciando...'); 
+        a = bytearray(1024 * 1024 * {{ mem_a_consumir_mb }}); 
+        time.sleep({{ duracion_segundos }})"
+      async: "{{ duracion_segundos + 5 }}"
+      poll: 0
       register: stress_job
 
-    - name: "Esperar un momento para que la RAM se asigne"
+    - name: "Esperar 5 segundos para que el sistema registre el cambio"
       ansible.builtin.pause:
         seconds: 5
 
-    - name: "3. Estado de memoria DURANTE el estrés"
-      ansible.builtin.command: free -m
-      register: post_mem
+    - name: "4. Recolectar datos actualizados"
+      ansible.builtin.setup:
+        filter: "ansible_mem*"
 
-    - name: "Mostrar memoria bajo carga"
+    - name: "5. Mostrar reporte FINAL legible"
       ansible.builtin.debug:
-        msg: "{{ post_mem.stdout_lines }}"
+        msg:
+          - "==========================================="
+          - "       REPORTE DE CONSUMO ACTIVO"
+          - "==========================================="
+          - " RAM TOTAL:        {{ ansible_memtotal_mb }} MB"
+          - " RAM AHORA LIBRE:  {{ ansible_memfree_mb }} MB"
+          - " RAM DISPONIBLE:   {{ ansible_memavailable_mb }} MB"
+          - "-------------------------------------------"
+          - " PROCESO:          Consumiendo {{ mem_a_consumir_mb }} MB"
+          - " TIEMPO RESTANTE:  {{ duracion_segundos }} segundos"
+          - "==========================================="
 
-    - name: "Resumen"
+    - name: "Nota final"
       ansible.builtin.debug:
-        msg: "El proceso terminará automáticamente en {{ duration_seconds }} segundos."
+        msg: "El consumo se liberará automáticamente cuando el tiempo termine."
