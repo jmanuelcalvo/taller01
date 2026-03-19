@@ -8,28 +8,33 @@
     min_space_gb: 5
 
   tasks:
-    - name: "Validar espacio en disco"
+    - name: "Validar espacio en disco (Silencioso)"
       ansible.builtin.assert:
         that:
           - item.size_available > (min_space_gb | int * 1024**3)
-        fail_msg: "ERROR: La partición {{ target_partition }} está por debajo del límite."
-        success_msg: "VALIDADO: Espacio suficiente en {{ target_partition }}."
+        fail_msg: "ERROR: La partición {{ target_partition }} no cumple con el mínimo."
       loop: "{{ ansible_mounts }}"
-      # ESTO ES LA CLAVE: Solo imprime el punto de montaje en el log, no todo el JSON
       loop_control:
         label: "{{ item.mount }}"
       when: item.mount == target_partition
+      # Oculta el JSON masivo de 'ansible_mounts' en el log
+      no_log: true
       register: disk_result
 
-    - name: "📊 Resumen de Almacenamiento"
+    - name: "📊 REPORTE DE ALMACENAMIENTO"
       ansible.builtin.debug:
         msg: 
+          - "==========================================="
+          - "🖥️ SERVIDOR: {{ inventory_hostname | upper }}"
           - "-------------------------------------------"
-          - "📌 Partición verificada: {{ target_partition }}"
-          - "💾 Espacio disponible: {{ (item.size_available / 1024**3) | round(2) }} GB"
-          - "✅ Estado: Operativo"
-          - "-------------------------------------------"
+          - "📌 Partición: {{ target_partition }}"
+          - "💾 Disponible: {{ (item.size_available / 1024**3) | round(2) }} GB"
+          - "📉 Requerido: {{ min_space_gb }} GB"
+          - "✅ ESTADO: ESPACIO SUFICIENTE"
+          - "==========================================="
       loop: "{{ ansible_mounts }}"
       loop_control:
-        label: "{{ item.mount }}"
-      when: item.mount == target_partition
+        label: "{{ inventory_hostname }}"
+      when: 
+        - item.mount == target_partition
+        - not disk_result.failed | default(false)
