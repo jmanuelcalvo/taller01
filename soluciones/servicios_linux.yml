@@ -1,0 +1,19 @@
+---
+- name: "Linux: Health Check & Provisioning con Variables"
+  hosts: linux_servers
+  become: yes
+  
+  # SECCIÓN DE VARIABLES: Aquí defines qué partición y qué límite quieres
+  vars:
+    critical_services:
+      - sshd
+      - rsyslog
+
+
+  tasks:
+    - name: "Verificar servicios críticos"
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: "{{ critical_services }}"

@@ -1,0 +1,24 @@
+---
+- name: "Linux: Health Check & Provisioning con Variables"
+  hosts: linux_servers
+  become: yes
+  
+  # SECCIÓN DE VARIABLES: Aquí defines qué partición y qué límite quieres
+  vars:
+    target_partition: "/"             # Partición a verificar
+    min_space_gb: 5                   # Espacio mínimo requerido en GB
+
+
+  tasks:
+    - name: "1. Validar espacio en disco (Dinámico)"
+      ansible.builtin.assert:
+        # Convertimos GB a Bytes para comparar con 'size_available'
+        that:
+          - item.mount == target_partition
+          - item.size_available > (min_space_gb | int * 1024**3)
+        fail_msg: >
+          ¡ALERTA! La partición '{{ target_partition }}' tiene menos de {{ min_space_gb }}GB disponibles. 
+          Espacio actual: {{ (item.size_available / 1024**3) | round(2) }} GB.
+        success_msg: "Espacio en '{{ target_partition }}' validado correctamente."
+      loop: "{{ ansible_mounts }}"
+      when: item.mount == target_partition

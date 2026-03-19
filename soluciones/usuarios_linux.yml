@@ -1,0 +1,15 @@
+---
+- name: "Linux: Health Check & Provisioning con Variables"
+  hosts: linux_servers
+  become: yes
+  
+  # SECCIÓN DE VARIABLES: Aquí defines qué partición y qué límite quieres
+  vars:
+    new_username: "ecuador"
+
+  tasks:
+    - name: "Crear usuario '{{ new_username }}'"
+      ansible.builtin.user:
+        name: "{{ new_username }}"
+        state: present
+        shell: /bin/bash
