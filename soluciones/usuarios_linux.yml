@@ -1,6 +1,6 @@
 ---
 - name: "Linux: Health Check & Provisioning con Variables"
-  hosts: linux_servers
+  hosts: os_linux
   become: yes
   
   # SECCIÓN DE VARIABLES: Aquí defines qué partición y qué límite quieres
