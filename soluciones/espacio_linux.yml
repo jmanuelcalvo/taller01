@@ -1,24 +1,35 @@
 ---
-- name: "Linux: Health Check & Provisioning con Variables"
-  hosts: os_linux
+- name: "Linux: Health Check & Provisioning"
+  hosts: linux_servers
   become: yes
   
-  # SECCIÓN DE VARIABLES: Aquí defines qué partición y qué límite quieres
   vars:
-    target_partition: "/"             # Partición a verificar
-    min_space_gb: 5                   # Espacio mínimo requerido en GB
-
+    target_partition: "/"
+    min_space_gb: 5
 
   tasks:
-    - name: "1. Validar espacio en disco (Dinámico)"
+    - name: "Validar espacio en disco"
       ansible.builtin.assert:
-        # Convertimos GB a Bytes para comparar con 'size_available'
         that:
-          - item.mount == target_partition
           - item.size_available > (min_space_gb | int * 1024**3)
-        fail_msg: >
-          ¡ALERTA! La partición '{{ target_partition }}' tiene menos de {{ min_space_gb }}GB disponibles. 
-          Espacio actual: {{ (item.size_available / 1024**3) | round(2) }} GB.
-        success_msg: "Espacio en '{{ target_partition }}' validado correctamente."
+        fail_msg: "ERROR: La partición {{ target_partition }} está por debajo del límite."
+        success_msg: "VALIDADO: Espacio suficiente en {{ target_partition }}."
       loop: "{{ ansible_mounts }}"
+      # ESTO ES LA CLAVE: Solo imprime el punto de montaje en el log, no todo el JSON
+      loop_control:
+        label: "{{ item.mount }}"
+      when: item.mount == target_partition
+      register: disk_result
+
+    - name: "📊 Resumen de Almacenamiento"
+      ansible.builtin.debug:
+        msg: 
+          - "-------------------------------------------"
+          - "📌 Partición verificada: {{ target_partition }}"
+          - "💾 Espacio disponible: {{ (item.size_available / 1024**3) | round(2) }} GB"
+          - "✅ Estado: Operativo"
+          - "-------------------------------------------"
+      loop: "{{ ansible_mounts }}"
+      loop_control:
+        label: "{{ item.mount }}"
       when: item.mount == target_partition
