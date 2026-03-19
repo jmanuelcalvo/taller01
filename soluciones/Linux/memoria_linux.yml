@@ -1,0 +1,47 @@
+---
+- name: "Consumo de Memoria Offline en RHEL"
+  hosts: all
+  become: yes
+  vars:
+    # Configura aquí cuánta RAM quieres consumir (en Megabytes)
+    # Ejemplo: 1024 = 1GB
+    mem_to_consume_mb: 512
+    # Cuánto tiempo quieres que se mantenga ocupada (en segundos)
+    duration_seconds: 60
+
+  tasks:
+    - name: "1. Estado de memoria ANTES"
+      ansible.builtin.command: free -m
+      register: pre_mem
+    
+    - name: "Mostrar memoria inicial"
+      ansible.builtin.debug:
+        msg: "{{ pre_mem.stdout_lines }}"
+
+    - name: "2. Ejecutar consumo de memoria (Python)"
+      # Creamos un bytearray gigante en RAM. 
+      # 1024 * 1024 * MB = Bytes exactos.
+      ansible.builtin.shell: >
+        python3 -c "import time; 
+        a = bytearray(1024 * 1024 * {{ mem_to_consume_mb }}); 
+        print('Consumiendo...'); 
+        time.sleep({{ duration_seconds }})"
+      async: "{{ duration_seconds + 10 }}" # Un poco más que el sleep para evitar timeouts
+      poll: 0 # No esperar a que termine para pasar a la siguiente tarea
+      register: stress_job
+
+    - name: "Esperar un momento para que la RAM se asigne"
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: "3. Estado de memoria DURANTE el estrés"
+      ansible.builtin.command: free -m
+      register: post_mem
+
+    - name: "Mostrar memoria bajo carga"
+      ansible.builtin.debug:
+        msg: "{{ post_mem.stdout_lines }}"
+
+    - name: "Resumen"
+      ansible.builtin.debug:
+        msg: "El proceso terminará automáticamente en {{ duration_seconds }} segundos."
