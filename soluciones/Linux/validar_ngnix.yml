@@ -1,0 +1,35 @@
+---
+- name: "Configuración de Nginx: Instalación y Verificación de Estado"
+  hosts: all
+  become: true  # Necesario para instalar paquetes y gestionar servicios
+
+  tasks:
+    - name: "1. Asegurar que Nginx esté instalado (Cualquier distribución)"
+      ansible.builtin.package:
+        name: nginx
+        state: present
+      register: installation_result
+
+    - name: "2. Asegurar que Nginx esté habilitado y en ejecución"
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+      register: nginx_service_status
+
+    - name: "3. Verificar la respuesta HTTP del servidor local"
+      ansible.builtin.uri:
+        url: "http://localhost"
+        method: GET
+        status_code: 200
+      register: http_check
+      ignore_errors: true
+
+    - name: "4. Mostrar resumen del estado final"
+      ansible.builtin.debug:
+        msg: 
+          - "--- RESUMEN DE OPERACIÓN ---"
+          - "Paquete instalado: {{ 'Sí' if installation_result.changed == false else 'Se instaló en esta ejecución' }}"
+          - "Estado del servicio: {{ nginx_service_status.state }}"
+          - "Habilitado en el arranque: {{ nginx_service_status.enabled }}"
+          - "Prueba de conectividad (HTTP 200): {{ 'Exitosa' if http_check.status == 200 else 'Fallida o requiere configuración adicional' }}"
