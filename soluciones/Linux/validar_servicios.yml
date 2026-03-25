@@ -3,33 +3,32 @@
   hosts: all
   gather_facts: false
   vars:
-    # Puedes definir una lista de servicios si deseas reportar varios a la vez
-    servicios_a_validar:
-      - httpd
-      - sshd
-      - chronyd
+    # Valor por defecto si el survey llega vacío para evitar errores
+    servicios_a_validar: "sshd"
 
   tasks:
-    - name: Obtener información técnica de los servicios
+    - name: Recolectar información de los servicios del sistema
       ansible.builtin.service_facts:
 
     - name: Generar Reporte de Estado en Pantalla
       ansible.builtin.debug:
         msg: |
           --------------------------------------------------
-          REPORTE DE ESTADO DE SERVICIO: {{ item }}
+          DETALLE DEL SERVICIO: {{ item | trim }}
           --------------------------------------------------
-          SISTEMA DESTINO : {{ inventory_hostname }}
-          ESTADO ACTUAL   : {{ (ansible_facts.services[item + '.service'].state | default('NOT FOUND')) | upper }}
-          AUTO-INICIO     : {{ (ansible_facts.services[item + '.service'].status | default('N/A')) | capitalize }}
+          SERVIDOR        : {{ inventory_hostname }}
+          ESTADO ACTUAL   : {{ (ansible_facts.services[item | trim + '.service'].state | default('NO INSTALADO')) | upper }}
+          AUTO-INICIO     : {{ (ansible_facts.services[item | trim + '.service'].status | default('N/A')) | capitalize }}
           --------------------------------------------------
-          RESULTADO       : {{ '✅ DISPONIBLE' if (ansible_facts.services[item + '.service'].state | default('') == 'running') else '❌ CRÍTICO / DOWN' }}
+          RESULTADO       : {{ '✅ DISPONIBLE' if (ansible_facts.services[item | trim + '.service'].state | default('') == 'running') else '❌ CRÍTICO / DOWN' }}
           --------------------------------------------------
-      loop: "{{ servicios_a_validar }}"
-      when: "item + '.service' in ansible_facts.services"
+      # Convierte el string del Survey en una lista ejecutable
+      loop: "{{ servicios_a_validar.split(',') }}"
+      # Se ejecuta solo si el servicio existe en el sistema
+      when: "(item | trim) + '.service' in ansible_facts.services"
 
-    - name: Alerta de servicios no instalados
+    - name: Reportar servicios faltantes
       ansible.builtin.debug:
-        msg: "⚠️ EL SERVICIO '{{ item }}' NO SE ENCUENTRA INSTALADO EN ESTE NODO."
-      loop: "{{ servicios_a_validar }}"
-      when: "item + '.service' not in ansible_facts.services"
+        msg: "⚠️ ATENCIÓN: El servicio '{{ item | trim }}' no existe en {{ inventory_hostname }}"
+      loop: "{{ servicios_a_validar.split(',') }}"
+      when: "(item | trim) + '.service' not in ansible_facts.services"
