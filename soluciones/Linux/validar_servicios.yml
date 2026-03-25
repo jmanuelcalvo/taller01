@@ -1,0 +1,23 @@
+---
+- name: Verificación de estado de servicios en RHEL
+  hosts: all
+  gather_facts: false
+  vars:
+    nombre_servicio: "httpd"  # Cambia esto por el servicio que desees validar
+
+  tasks:
+    - name: Recolectar información de los servicios del sistema
+      ansible.builtin.service_facts:
+
+    - name: Validar si el servicio está activo
+      ansible.builtin.debug:
+        msg: "El servicio {{ nombre_servicio }} se encuentra: {{ ansible_facts.services[nombre_servicio + '.service'].state }}"
+      when: "nombre_servicio + '.service' in ansible_facts.services"
+
+    - name: Detener el playbook si el servicio no está corriendo
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[nombre_servicio + '.service'].state == 'running'
+        fail_msg: "ALERTA: El servicio {{ nombre_servicio }} NO está iniciado."
+        success_msg: "CONFIRMACIÓN: El servicio {{ nombre_servicio }} está Up & Running."
+      when: "nombre_servicio + '.service' in ansible_facts.services"
