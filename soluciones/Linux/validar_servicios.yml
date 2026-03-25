@@ -1,23 +1,35 @@
 ---
-- name: Verificación de estado de servicios en RHEL
+- name: Reporte de Disponibilidad de Servicios RHEL
   hosts: all
   gather_facts: false
   vars:
-    nombre_servicio: "httpd"  # Cambia esto por el servicio que desees validar
+    # Puedes definir una lista de servicios si deseas reportar varios a la vez
+    servicios_a_validar:
+      - httpd
+      - sshd
+      - chronyd
 
   tasks:
-    - name: Recolectar información de los servicios del sistema
+    - name: Obtener información técnica de los servicios
       ansible.builtin.service_facts:
 
-    - name: Validar si el servicio está activo
+    - name: Generar Reporte de Estado en Pantalla
       ansible.builtin.debug:
-        msg: "El servicio {{ nombre_servicio }} se encuentra: {{ ansible_facts.services[nombre_servicio + '.service'].state }}"
-      when: "nombre_servicio + '.service' in ansible_facts.services"
+        msg: |
+          --------------------------------------------------
+          REPORTE DE ESTADO DE SERVICIO: {{ item }}
+          --------------------------------------------------
+          SISTEMA DESTINO : {{ inventory_hostname }}
+          ESTADO ACTUAL   : {{ (ansible_facts.services[item + '.service'].state | default('NOT FOUND')) | upper }}
+          AUTO-INICIO     : {{ (ansible_facts.services[item + '.service'].status | default('N/A')) | capitalize }}
+          --------------------------------------------------
+          RESULTADO       : {{ '✅ DISPONIBLE' if (ansible_facts.services[item + '.service'].state | default('') == 'running') else '❌ CRÍTICO / DOWN' }}
+          --------------------------------------------------
+      loop: "{{ servicios_a_validar }}"
+      when: "item + '.service' in ansible_facts.services"
 
-    - name: Detener el playbook si el servicio no está corriendo
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.services[nombre_servicio + '.service'].state == 'running'
-        fail_msg: "ALERTA: El servicio {{ nombre_servicio }} NO está iniciado."
-        success_msg: "CONFIRMACIÓN: El servicio {{ nombre_servicio }} está Up & Running."
-      when: "nombre_servicio + '.service' in ansible_facts.services"
+    - name: Alerta de servicios no instalados
+      ansible.builtin.debug:
+        msg: "⚠️ EL SERVICIO '{{ item }}' NO SE ENCUENTRA INSTALADO EN ESTE NODO."
+      loop: "{{ servicios_a_validar }}"
+      when: "item + '.service' not in ansible_facts.services"
